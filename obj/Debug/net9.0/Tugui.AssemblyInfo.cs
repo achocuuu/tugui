@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Tugui")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+69abf934f4fe60950437c62eba55de4a4540a7bf")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e851939c3ff83242c4b9117709a49e8946a5adb3")]
 [assembly: System.Reflection.AssemblyProductAttribute("Tugui")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Tugui")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -18,7 +18,7 @@ public class Game1 : Game
     private PlayerState _player;
 
     private float _tickTimer = 0f;
-    private float _tickInterval = 1.0f; // 1 espacio por segundo para debug MVP
+    private float _tickInterval = 1.0f; // debug: 1 celda por segundo
 
     private int _activatedCount = 0;
 
@@ -40,11 +40,12 @@ public class Game1 : Game
         {
             Row = 2,
             Col = 2,
+            PreviousRow = 2,
+            PreviousCol = 2,
             Facing = Direction.North
         };
 
         ActivateCurrentCellIfNeeded();
-
         base.Initialize();
     }
 
@@ -67,7 +68,7 @@ public class Game1 : Game
 
         _tickTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-        if (_tickTimer >= _tickInterval)
+        while (_tickTimer >= _tickInterval)
         {
             _tickTimer -= _tickInterval;
             AdvanceOneStep();
@@ -104,6 +105,9 @@ public class Game1 : Game
 
     private void AdvanceOneStep()
     {
+        _player.PreviousRow = _player.Row;
+        _player.PreviousCol = _player.Col;
+
         Point delta = DirectionToDelta(_player.Facing);
 
         int nextRow = _player.Row + delta.Y;
@@ -114,6 +118,12 @@ public class Game1 : Game
             _player.Row = nextRow;
             _player.Col = nextCol;
             ActivateCurrentCellIfNeeded();
+        }
+        else
+        {
+            // si choca con borde, mantenerse en la misma celda
+            _player.PreviousRow = _player.Row;
+            _player.PreviousCol = _player.Col;
         }
     }
 
@@ -152,7 +162,7 @@ public class Game1 : Game
         int y = (int)cell.ScreenPosition.Y;
         int size = cell.Size;
 
-        Color floorColor = ((cell.LocalForward + cell.LocalRight) % 2 == 0)
+        Color floorColor = ((cell.WorldRow + cell.WorldCol) % 2 == 0)
             ? new Color(210, 170, 95)
             : new Color(120, 55, 75);
 
@@ -189,36 +199,37 @@ public class Game1 : Game
 
         Vector2 screenCenter = new(w / 2f, h * 0.72f);
 
-        // rango visible alrededor del jugador
+        float alpha = MathHelper.Clamp(_tickTimer / _tickInterval, 0f, 1f);
+
+        float interpRow = MathHelper.Lerp(_player.PreviousRow, _player.Row, alpha);
+        float interpCol = MathHelper.Lerp(_player.PreviousCol, _player.Col, alpha);
+
         for (int row = 0; row < _grid.Rows; row++)
         {
             for (int col = 0; col < _grid.Cols; col++)
             {
-                int dRow = row - _player.Row;
-                int dCol = col - _player.Col;
+                float dRow = row - interpRow;
+                float dCol = col - interpCol;
 
-                // Convertimos coordenadas globales a locales relativas a la dirección del jugador
-                (int localRight, int localForward) = WorldToLocal(dRow, dCol, _player.Facing);
+                (float localRight, float localForward) = WorldToLocalFloat(dRow, dCol, _player.Facing);
 
-                // Solo dibujamos lo que está al frente y un poco a los lados
-                if (localForward < 0 || localForward > 4)
+                if (localForward < -0.2f || localForward > 4.5f)
                     continue;
 
-                if (Math.Abs(localRight) > 2)
+                if (Math.Abs(localRight) > 2.5f)
                     continue;
 
-                float depth = localForward + 1f;
+                float forwardT = MathHelper.Clamp(localForward / 4f, 0f, 1f);
 
-                float scale = 1f / depth;
-                int size = (int)MathHelper.Lerp(150f, 40f, localForward / 4f);
+                int size = (int)MathHelper.Lerp(150f, 40f, forwardT);
 
                 float laneSpreadNear = 180f;
                 float laneSpreadFar = 50f;
-                float laneSpread = MathHelper.Lerp(laneSpreadNear, laneSpreadFar, localForward / 4f);
+                float laneSpread = MathHelper.Lerp(laneSpreadNear, laneSpreadFar, forwardT);
 
                 float rowStepNear = 110f;
                 float rowStepFar = 55f;
-                float rowStep = MathHelper.Lerp(rowStepNear, rowStepFar, localForward / 4f);
+                float rowStep = MathHelper.Lerp(rowStepNear, rowStepFar, forwardT);
 
                 float x = screenCenter.X + localRight * laneSpread;
                 float y = screenCenter.Y - localForward * rowStep;
@@ -227,8 +238,8 @@ public class Game1 : Game
 
                 result.Add(new ProjectedCell
                 {
-                    Row = row,
-                    Col = col,
+                    WorldRow = row,
+                    WorldCol = col,
                     LocalForward = localForward,
                     LocalRight = localRight,
                     ScreenPosition = new Vector2(x, y),
@@ -239,7 +250,6 @@ public class Game1 : Game
             }
         }
 
-        // dibujar de lejos a cerca
         result.Sort((a, b) => a.LocalForward.CompareTo(b.LocalForward));
         return result;
     }
@@ -264,11 +274,9 @@ public class Game1 : Game
         DrawBar(x, y, _activatedCount, _grid.TotalOrbs, new Color(100, 255, 120));
         DrawBar(x, y + 30, (int)(_tickTimer * 100), (int)(_tickInterval * 100), new Color(255, 220, 90));
 
-        // Posición
-        DrawRect(30, 100, 12, 12, Color.White); // row
+        DrawRect(30, 100, 12, 12, Color.White);
         DrawRect(50 + _player.Col * 18, 100, 12, 12, new Color(80, 150, 255));
 
-        // dirección simple
         int dirX = 30;
         int dirY = 130;
         for (int i = 0; i < 4; i++)
@@ -285,7 +293,7 @@ public class Game1 : Game
         DrawRect(x, y, fill, 16, color);
     }
 
-    private static (int localRight, int localForward) WorldToLocal(int dRow, int dCol, Direction facing)
+    private static (float localRight, float localForward) WorldToLocalFloat(float dRow, float dCol, Direction facing)
     {
         return facing switch
         {
@@ -356,6 +364,8 @@ public class PlayerState
 {
     public int Row { get; set; }
     public int Col { get; set; }
+    public int PreviousRow { get; set; }
+    public int PreviousCol { get; set; }
     public Direction Facing { get; set; }
 }
 
@@ -396,7 +406,6 @@ public class StageGrid
     {
         var grid = new StageGrid(5, 5);
 
-        // patrón simple para debug
         int[,] orbPositions =
         {
             { 0, 1 }, { 0, 3 },
@@ -420,10 +429,10 @@ public class StageGrid
 
 public class ProjectedCell
 {
-    public int Row { get; set; }
-    public int Col { get; set; }
-    public int LocalForward { get; set; }
-    public int LocalRight { get; set; }
+    public int WorldRow { get; set; }
+    public int WorldCol { get; set; }
+    public float LocalForward { get; set; }
+    public float LocalRight { get; set; }
     public Vector2 ScreenPosition { get; set; }
     public int Size { get; set; }
     public bool HasOrb { get; set; }
