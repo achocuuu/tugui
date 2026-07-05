@@ -42,7 +42,8 @@ public class Game1 : Game
             Col = 2,
             PreviousRow = 2,
             PreviousCol = 2,
-            Facing = Direction.North
+            Facing = Direction.North,
+            PreviousFacing = Direction.North
         };
 
         ActivateCurrentCellIfNeeded();
@@ -97,10 +98,18 @@ public class Game1 : Game
     private void HandleTurnInput(KeyboardState keyboard)
     {
         if (IsKeyPressed(keyboard, Keys.Left))
+        {
+            _player.PreviousFacing = _player.Facing;
             _player.Facing = TurnLeft(_player.Facing);
+            _tickTimer = 0f; // reinicia interpolación visual del giro
+        }
 
         if (IsKeyPressed(keyboard, Keys.Right))
+        {
+            _player.PreviousFacing = _player.Facing;
             _player.Facing = TurnRight(_player.Facing);
+            _tickTimer = 0f; // reinicia interpolación visual del giro
+        }
     }
 
     private void AdvanceOneStep()
@@ -121,10 +130,12 @@ public class Game1 : Game
         }
         else
         {
-            // si choca con borde, mantenerse en la misma celda
             _player.PreviousRow = _player.Row;
             _player.PreviousCol = _player.Col;
         }
+
+        // al completar el tick, cerramos la transición visual de giro
+        _player.PreviousFacing = _player.Facing;
     }
 
     private void ActivateCurrentCellIfNeeded()
@@ -204,6 +215,12 @@ public class Game1 : Game
         float interpRow = MathHelper.Lerp(_player.PreviousRow, _player.Row, alpha);
         float interpCol = MathHelper.Lerp(_player.PreviousCol, _player.Col, alpha);
 
+        float visualAngle = LerpAngle(
+            DirectionToAngle(_player.PreviousFacing),
+            DirectionToAngle(_player.Facing),
+            alpha
+        );
+
         for (int row = 0; row < _grid.Rows; row++)
         {
             for (int col = 0; col < _grid.Cols; col++)
@@ -211,7 +228,7 @@ public class Game1 : Game
                 float dRow = row - interpRow;
                 float dCol = col - interpCol;
 
-                (float localRight, float localForward) = WorldToLocalFloat(dRow, dCol, _player.Facing);
+                (float localRight, float localForward) = WorldToLocalByAngle(dRow, dCol, visualAngle);
 
                 if (localForward < -0.2f || localForward > 4.5f)
                     continue;
@@ -293,16 +310,48 @@ public class Game1 : Game
         DrawRect(x, y, fill, 16, color);
     }
 
-    private static (float localRight, float localForward) WorldToLocalFloat(float dRow, float dCol, Direction facing)
+    private static (float localRight, float localForward) WorldToLocalByAngle(float dRow, float dCol, float angle)
     {
-        return facing switch
+        // Eje mundo: X = columnas, Y = filas
+        float worldX = dCol;
+        float worldY = dRow;
+
+        // Forward visual: ángulo en el plano mundo
+        float forwardX = (float)Math.Sin(angle);
+        float forwardY = (float)(-Math.Cos(angle));
+
+        float rightX = (float)Math.Cos(angle);
+        float rightY = (float)Math.Sin(angle);
+
+        float localRight = worldX * rightX + worldY * rightY;
+        float localForward = worldX * forwardX + worldY * forwardY;
+
+        return (localRight, localForward);
+    }
+
+    private static float DirectionToAngle(Direction direction)
+    {
+        return direction switch
         {
-            Direction.North => (dCol, -dRow),
-            Direction.East  => (dRow, dCol),
-            Direction.South => (-dCol, dRow),
-            Direction.West  => (-dRow, -dCol),
-            _ => (dCol, -dRow)
+            Direction.North => 0f,
+            Direction.East => MathHelper.PiOver2,
+            Direction.South => MathHelper.Pi,
+            Direction.West => -MathHelper.PiOver2,
+            _ => 0f
         };
+    }
+
+    private static float LerpAngle(float a, float b, float t)
+    {
+        float diff = WrapAngle(b - a);
+        return a + diff * t;
+    }
+
+    private static float WrapAngle(float angle)
+    {
+        while (angle <= -MathF.PI) angle += MathF.Tau;
+        while (angle > MathF.PI) angle -= MathF.Tau;
+        return angle;
     }
 
     private static Point DirectionToDelta(Direction facing)
@@ -310,9 +359,9 @@ public class Game1 : Game
         return facing switch
         {
             Direction.North => new Point(0, -1),
-            Direction.East  => new Point(1, 0),
+            Direction.East => new Point(1, 0),
             Direction.South => new Point(0, 1),
-            Direction.West  => new Point(-1, 0),
+            Direction.West => new Point(-1, 0),
             _ => Point.Zero
         };
     }
@@ -322,9 +371,9 @@ public class Game1 : Game
         return facing switch
         {
             Direction.North => Direction.West,
-            Direction.West  => Direction.South,
+            Direction.West => Direction.South,
             Direction.South => Direction.East,
-            Direction.East  => Direction.North,
+            Direction.East => Direction.North,
             _ => facing
         };
     }
@@ -334,9 +383,9 @@ public class Game1 : Game
         return facing switch
         {
             Direction.North => Direction.East,
-            Direction.East  => Direction.South,
+            Direction.East => Direction.South,
             Direction.South => Direction.West,
-            Direction.West  => Direction.North,
+            Direction.West => Direction.North,
             _ => facing
         };
     }
@@ -367,6 +416,7 @@ public class PlayerState
     public int PreviousRow { get; set; }
     public int PreviousCol { get; set; }
     public Direction Facing { get; set; }
+    public Direction PreviousFacing { get; set; }
 }
 
 public class Cell
