@@ -1,3 +1,4 @@
 # .NET build artifacts
 **/bin/
 **/obj/
+/error.log
