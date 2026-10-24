@@ -1,0 +1,2 @@
+2026-10-24T13:40:29-03:00 — MVP-01: Added web/ Phaser/Vite scaffold, deterministic movement and turn queue, primitive perspective view, restart/focus handling and simulation tests. MonoGame files unchanged.
+Validation: source review completed; automated tests, dependency install, production build and browser playtest blocked because Node.js/npm are unavailable. See web/README.md for local validation commands.
